@@ -26,3 +26,29 @@ jobs:
 
       - name: Run go test
         run: go test -v -race ./...
+
+  deploy:
+    name: Deploy to Azure VM
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy-moderator
+      cancel-in-progress: false
+
+    steps:
+      - name: Deploy Moderator via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd ~/pixel/pixel-reviews-moderation
+            git fetch origin main
+            git reset --hard origin/main
+            cd ~/pixel/pixel-reviews-api/deploy
+            docker compose -f docker-compose.prod.yml up -d --build moderator
+            docker image prune -f
+
